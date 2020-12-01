@@ -1,0 +1,506 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: DevSecOps Example. Shows an example of a template used in a fictitious healthcare example
+Parameters:
+  CodeCommitRepo:
+    Description: Provide the HTTPS clone URL to AWS CodeCommit repository
+    Type: String
+    MinLength: 25
+    ConstraintDescription: Provide the HTTPS clone URL to AWS CodeCommit repository
+  WebDirectory:
+    Description: Provide the website directory name
+    Type: String
+    MinLength: 2
+    ConstraintDescription: Provide the website directory name you wish to use
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to TEST instance or Admin SSH access to Prod instance
+    Type: AWS::EC2::KeyPair::KeyName
+    MinLength: 1
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair
+  PHI:
+    Description: Will this instance need to store Protected Health Information?
+    Default: "YES"
+    Type: String
+    AllowedValues:
+    - "YES"
+    - "NO"
+  Environment:
+    Description: Please specify the target environment
+    Default: "TEST"
+    Type: String
+    AllowedValues:
+    - "TEST"
+    - "PROD"
+  InstanceOwnerEmail:
+    "Description": Please enter the E-mail address of the developer taking responsibility for this server
+    "Default": "@mycompany.com"
+    "Type": String
+  FriendlyName:
+    Description: Please enter a friendly name for the server
+    Type: String
+    MinLength: 3
+    ConstraintDescription: Must enter a friendly name for the server containing at least three characters.
+  InstanceType:
+    Description: "EC2 instance type - limited to instances that offer encrypted volumes (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSEncryption.html#EBSEncryption_supported_instances)"
+    Type: String
+    Default: m3.medium
+    AllowedValues:
+    - m3.medium
+    - m3.large
+    - m3.xlarge
+    - m3.2xlarge
+    - m4.large
+    - m4.xlarge
+    - m4.2xlarge
+    - m4.4xlarge
+    - m4.10xlarge
+    - m4.16xlarge
+    - t2.nano
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - t2.xlarge
+    - t2.2xlarge
+    - c4.large
+    - c4.xlarge
+    - c4.2xlarge
+    - c4.4xlarge
+    - c4.8xlarge
+    - c3.large
+    - c3.xlarge
+    - c3.2xlarge
+    - c3.4xlarge
+    - c3.8xlarge
+    - cr1.8xlarge
+    - r3.large
+    - r3.xlarge
+    - r3.2xlarge
+    - r3.4xlarge
+    - r3.8xlarge
+    - r4.large
+    - r4.xlarge
+    - r4.2xlarge
+    - r4.4xlarge
+    - r4.8xlarge
+    - r4.16xlarge
+    - x1.16xlarge
+    - x1.32xlarge
+    - d2.xlarge
+    - d2.2xlarge
+    - d2.4xlarge
+    - d2.8xlarge
+    - i2.xlarge
+    - i2.2xlarge
+    - i2.4xlarge
+    - i2.8xlarge
+    - i3.large
+    - i3.xlarge
+    - i3.2xlarge
+    - i3.4xlarge
+    - i3.8xlarge
+    - i3.16xlarge
+    - f1.2xlarge
+    - f1.16xlarge
+    - g2.2xlarge
+    - g2.8xlarge
+    - p2.xlarge
+    - p2.8xlarge
+    - p2.16xlarge
+    ConstraintDescription: Must be a valid EC2 instance type that offers encrypted volumes.
+Conditions:
+  CreatePRODResources: !Equals [!Ref Environment, "PROD"]
+  CreateTESTResources: !Equals [!Ref Environment, "TEST"]
+  ContainsPHI: !Equals [!Ref PHI, "YES"]
+Mappings:
+  AWSInstanceType2Arch:
+    m3.medium:
+      Arch: HVM64
+    m3.large:
+      Arch: HVM64
+    m3.xlarge:
+      Arch: HVM64
+    m3.2xlarge:
+      Arch: HVM64
+    m4.large:
+      Arch: HVM64
+    m4.xlarge:
+      Arch: HVM64
+    m4.2xlarge:
+      Arch: HVM64
+    m4.4xlarge:
+      Arch: HVM64
+    m4.10xlarge:
+      Arch: HVM64
+    m4.16xlarge:
+      Arch: HVM64
+    t2.nano:
+      Arch: HVM64
+    t2.micro:
+      Arch: HVM64
+    t2.small:
+      Arch: HVM64
+    t2.medium:
+      Arch: HVM64
+    t2.large:
+      Arch: HVM64
+    t2.xlarge:
+      Arch: HVM64
+    t2.2xlarge:
+      Arch: HVM64
+    c4.large:
+      Arch: HVM64
+    c4.xlarge:
+      Arch: HVM64
+    c4.2xlarge:
+      Arch: HVM64
+    c4.4xlarge:
+      Arch: HVM64
+    c4.8xlarge:
+      Arch: HVM64
+    c3.large:
+      Arch: HVM64
+    c3.xlarge:
+      Arch: HVM64
+    c3.2xlarge:
+      Arch: HVM64
+    c3.4xlarge:
+      Arch: HVM64
+    c3.8xlarge:
+      Arch: HVM64
+    cr1.8xlarge:
+      Arch: HVM64
+    r3.large:
+      Arch: HVM64
+    r3.xlarge:
+      Arch: HVM64
+    r3.2xlarge:
+      Arch: HVM64
+    r3.4xlarge:
+      Arch: HVM64
+    r3.8xlarge:
+      Arch: HVM64
+    r4.large:
+      Arch: HVM64
+    r4.xlarge:
+      Arch: HVM64
+    r4.2xlarge:
+      Arch: HVM64
+    r4.4xlarge:
+      Arch: HVM64
+    r4.8xlarge:
+      Arch: HVM64
+    r4.16xlarge:
+      Arch: HVM64
+    x1.16xlarge:
+      Arch: HVM64
+    x1.32xlarge:
+      Arch: HVM64
+    d2.xlarge:
+      Arch: HVM64
+    d2.2xlarge:
+      Arch: HVM64
+    d2.4xlarge:
+      Arch: HVM64
+    d2.8xlarge:
+      Arch: HVM64
+    i2.xlarge:
+      Arch: HVM64
+    i2.2xlarge:
+      Arch: HVM64
+    i2.4xlarge:
+      Arch: HVM64
+    i2.8xlarge:
+      Arch: HVM64
+    i3.large:
+      Arch: HVM64
+    i3.xlarge:
+      Arch: HVM64
+    i3.2xlarge:
+      Arch: HVM64
+    i3.4xlarge:
+      Arch: HVM64
+    i3.8xlarge:
+      Arch: HVM64
+    i3.16xlarge:
+      Arch: HVM64
+    f1.2xlarge:
+      Arch: HVM64
+    f1.16xlarge:
+      Arch: HVM64
+    g2.2xlarge:
+      Arch: HVM64
+    g2.8xlarge:
+      Arch: HVM64
+    p2.xlarge:
+      Arch: HVM64
+    p2.8xlarge:
+      Arch: HVM64
+    p2.16xlarge:
+      Arch: HVM64
+  AWSInstanceType2NATArch:
+    m3.medium:
+      Arch: NATHVM64
+    m3.large:
+      Arch: NATHVM64
+    m3.xlarge:
+      Arch: NATHVM64
+    m3.2xlarge:
+      Arch: NATHVM64
+    m4.large:
+      Arch: NATHVM64
+    m4.xlarge:
+      Arch: NATHVM64
+    m4.2xlarge:
+      Arch: NATHVM64
+    m4.4xlarge:
+      Arch: NATHVM64
+    m4.10xlarge:
+      Arch: NATHVM64
+    m4.16xlarge:
+      Arch: NATHVM64
+    t2.nano:
+      Arch: NATHVM64
+    t2.micro:
+      Arch: NATHVM64
+    t2.small:
+      Arch: NATHVM64
+    t2.medium:
+      Arch: NATHVM64
+    t2.large:
+      Arch: NATHVM64
+    t2.xlarge:
+      Arch: NATHVM64
+    t2.2xlarge:
+      Arch: NATHVM64
+    c4.large:
+      Arch: NATHVM64
+    c4.xlarge:
+      Arch: NATHVM64
+    c4.2xlarge:
+      Arch: NATHVM64
+    c4.4xlarge:
+      Arch: NATHVM64
+    c4.8xlarge:
+      Arch: NATHVM64
+    c3.large:
+      Arch: NATHVM64
+    c3.xlarge:
+      Arch: NATHVM64
+    c3.2xlarge:
+      Arch: NATHVM64
+    c3.4xlarge:
+      Arch: NATHVM64
+    c3.8xlarge:
+      Arch: NATHVM64
+    cr1.8xlarge:
+      Arch: NATHVM64
+    r3.large:
+      Arch: NATHVM64
+    r3.xlarge:
+      Arch: NATHVM64
+    r3.2xlarge:
+      Arch: NATHVM64
+    r3.4xlarge:
+      Arch: NATHVM64
+    r3.8xlarge:
+      Arch: NATHVM64
+    r4.large:
+      Arch: NATHVM64
+    r4.xlarge:
+      Arch: NATHVM64
+    r4.2xlarge:
+      Arch: NATHVM64
+    r4.4xlarge:
+      Arch: NATHVM64
+    r4.8xlarge:
+      Arch: NATHVM64
+    r4.16xlarge:
+      Arch: NATHVM64
+    x1.16xlarge:
+      Arch: NATHVM64
+    x1.32xlarge:
+      Arch: NATHVM64
+    d2.xlarge:
+      Arch: NATHVM64
+    d2.2xlarge:
+      Arch: NATHVM64
+    d2.4xlarge:
+      Arch: NATHVM64
+    d2.8xlarge:
+      Arch: NATHVM64
+    i2.xlarge:
+      Arch: NATHVM64
+    i2.2xlarge:
+      Arch: NATHVM64
+    i2.4xlarge:
+      Arch: NATHVM64
+    i2.8xlarge:
+      Arch: NATHVM64
+    i3.large:
+      Arch: NATHVM64
+    i3.xlarge:
+      Arch: NATHVM64
+    i3.2xlarge:
+      Arch: NATHVM64
+    i3.4xlarge:
+      Arch: NATHVM64
+    i3.8xlarge:
+      Arch: NATHVM64
+    i3.16xlarge:
+      Arch: NATHVM64
+    f1.2xlarge:
+      Arch: NATHVM64
+    f1.16xlarge:
+      Arch: NATHVM64
+    g2.2xlarge:
+      Arch: NATHVM64
+    g2.8xlarge:
+      Arch: NATHVM64
+    p2.xlarge:
+      Arch: NATHVM64
+    p2.8xlarge:
+      Arch: NATHVM64
+    p2.16xlarge:
+      Arch: NATHVM64
+  AWSRegionArch2AMI:
+    us-east-1:
+      PV64: ami-668f1e70
+      HVM64: ami-c58c1dd3
+      HVMG2: ami-61e27177
+    us-east-2:
+      HVM64: ami-4191b524
+    us-west-1:
+      PV64: ami-0f85a06f
+      HVM64: ami-7a85a01a
+      HVMG2: ami-4b694d2b
+    us-west-2:
+      PV64: ami-c737a5a7
+      HVM64: ami-4836a428
+      HVMG2: ami-60aa3700
+Resources:
+  HealthcareWebRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      Path: "/"
+      ManagedPolicyArns:
+      - "arn:aws:iam::aws:policy/AWSCodeCommitReadOnly"
+      - "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+  HIPAAWebInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - !Ref HealthcareWebRole
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      Monitoring: "true"
+      IamInstanceProfile: !Ref HIPAAWebInstanceProfile
+      Tags:
+      - Key: PHI
+        Value: !Ref PHI
+      - Key: Name
+        Value: !Ref FriendlyName
+      - Key: Environment
+        Value: !Ref Environment
+      - Key: InstanceOwnerEmail
+        Value: !Ref InstanceOwnerEmail
+      BlockDeviceMappings:
+      - DeviceName: "/dev/sdm"
+        Ebs:
+          VolumeType: io1
+          Iops: 200
+          DeleteOnTermination: false
+          VolumeSize: 10
+          Encrypted: !If [ContainsPHI, "true", "false"]
+      - DeviceName: "/dev/sdk"
+        NoDevice: {}
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo starting script
+          yum update -y
+          yum install -y awslogs git httpd mod_ssl 
+          echo updates and packages installed
+          service awslogs start
+          chkconfig awslogs on
+          echo aws logs installed and turned on
+          wget https://s3.amazonaws.com/awsiammedia/public/sample/hippa-compliance/aws-service-catalog/code-deployments/fakehipaa.crt -P /etc/pki/tls/certs
+          wget https://s3.amazonaws.com/awsiammedia/public/sample/hippa-compliance/aws-service-catalog/code-deployments/fakehipaa.key -P /etc/pki/tls/private/
+          wget https://s3.amazonaws.com/awsiammedia/public/sample/hippa-compliance/aws-service-catalog/code-deployments/fakehipaa.csr -P /etc/pki/tls/private/
+          wget https://s3.amazonaws.com/awsiammedia/public/sample/hippa-compliance/aws-service-catalog/code-deployments/ssl.conf -P /etc/httpd/conf.d/ssl.conf
+          service httpd start
+          chkconfig httpd on
+          echo Web server security configured and running
+          git config --system credential.https://git-codecommit.us-east-1.amazonaws.com.helper '!aws --profile default codecommit credential-helper $@'
+          git config --system credential.https://git-codecommit.us-east-1.amazonaws.com.UseHttpPath true
+          aws configure set region us-east-1
+          echo Git configured
+          cd /var/www/html
+          echo in the content directory of $(pwd)
+          git clone '${CodeCommitRepo}' '${WebDirectory}'
+          echo project cloned
+      SecurityGroups:
+      - !If [CreateTESTResources, !Ref InstanceSecurityGroupTEST, !Ref InstanceSecurityGroupPROD]
+      ImageId: !FindInMap [AWSRegionArch2AMI, !Ref "AWS::Region", !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]
+  InstanceSecurityGroupTEST:
+    Type: AWS::EC2::SecurityGroup
+    Condition: CreateTESTResources
+    Properties:
+      GroupDescription: Enable access only from secure protocols
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: "22"
+        ToPort: "22"
+        CidrIp: "10.0.0.0/24"
+      - IpProtocol: tcp
+        FromPort: "443"
+        ToPort: "443"
+        CidrIp: "10.0.0.0/24"
+      - IpProtocol: tcp
+        FromPort: "143"
+        ToPort: "143"
+        CidrIp: "10.0.0.0/24"
+      - IpProtocol: tcp
+        FromPort: "465"
+        ToPort: "465"
+        CidrIp: "10.0.0.0/24"
+      - IpProtocol: icmp
+        FromPort: "8"
+        ToPort: "-1"
+        CidrIp: "10.0.0.0/24"
+  InstanceSecurityGroupPROD:
+    Type: AWS::EC2::SecurityGroup
+    Condition: CreatePRODResources
+    Properties:
+      GroupDescription: Enable access only from secure protocols
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: "443"
+        ToPort: "443"
+        CidrIp: "10.0.0.0/24"
+Outputs:
+  InstanceId:
+    Description: InstanceId of the newly created compliant EC2 instance
+    Value: !Ref EC2Instance
+  CompliantWebsiteURL:
+    Description: URL of the newly created compliant website
+    Value: !Join ["", ["https://", !GetAtt EC2Instance.PublicDnsName, "/", !Ref WebDirectory]]
+  PublicIP:
+    Description: Public IP address of the newly created compliant EC2 instance
+    Value: !GetAtt EC2Instance.PublicIp
+
+
+
